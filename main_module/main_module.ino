@@ -1,17 +1,18 @@
-#include <Strela.h>
+#include <Alkoduino.h>
 #include  <Wire.h>
 
 #define LEFT_SENSOR_PIN  8
 #define RIGHT_SENSOR_PIN 9
 
-#define SPEED            50//60
+#define SPEED            60//120//60
+#define TURN_SPEED       70//     140//60
 //#define SLOW_SPEED       35//7 
 //#define BACK_SLOW_SPEED  30//5
 //#define BACK_FAST_SPEED  50//10
 
-#define SLOW_SPEED       45//60 
-#define BACK_SLOW_SPEED  45//60
-#define BACK_FAST_SPEED  50//60
+#define SLOW_SPEED       60//90//60 
+#define BACK_SLOW_SPEED  60//90//60
+#define BACK_FAST_SPEED  70//100//60
 
 
 #define BRAKE_K          4
@@ -19,6 +20,8 @@
 #define STATE_FORWARD    0
 #define STATE_RIGHT      1
 #define STATE_LEFT       2
+#define STATE_STOP       3
+#define STATE_HOME       4
 
 #define SPEED_STEP       2
 
@@ -26,16 +29,23 @@
 
 #define RIGHT_THRESHOLD  100
 #define LEFT_THRESHOLD  200
-#define LEFT_SENSOR P12
-#define RIGHT_SENSOR P11
+#define LEFT_SENSOR P11
+#define RIGHT_SENSOR P12
 
-int state = STATE_FORWARD;
+#define TOTAL_STOP_NUMBER
+
+int state = STATE_FORWARD; //STATE_HOME;
 int currentSpeed = SPEED;
 int fastTime = 0;
 int prev_right = 0;
 int prev_left = 0;
 
+int first_left_state = 0;
+int first_right_state = 0;
+
 int buttle_counter = 0;
+int is_stop = 0;
+int is_home = 0;
 
 void runForward() 
 {
@@ -53,10 +63,10 @@ void runForward()
     //digitalWrite(DIR_LEFT, HIGH);
     //digitalWrite(DIR_RIGHT, HIGH);
     
-    uDigitalWrite(L1, LOW);
-    uDigitalWrite(L2, HIGH);
-    uDigitalWrite(L3, HIGH);
-    uDigitalWrite(L4, LOW);
+    u_digital_write(L1, LOW);
+    u_digital_write(L2, HIGH);
+    u_digital_write(L3, HIGH);
+    u_digital_write(L4, LOW);
  
     drive (currentSpeed, currentSpeed);
 }
@@ -74,12 +84,12 @@ void steerRight()
     //digitalWrite(DIR_LEFT, HIGH);
     //digitalWrite(DIR_RIGHT, HIGH);
     
-    uDigitalWrite(L1, LOW);
-    uDigitalWrite(L2, LOW);
-    uDigitalWrite(L3, LOW);
-    uDigitalWrite(L4, HIGH);
+    u_digital_write(L1, LOW);
+    u_digital_write(L2, LOW);
+    u_digital_write(L3, LOW);
+    u_digital_write(L4, HIGH);
     
-    drive (0, SPEED);
+    drive (0, TURN_SPEED);
 }
 
 void steerLeft() 
@@ -87,10 +97,10 @@ void steerLeft()
     state = STATE_LEFT;
     fastTime = 0;
 
-    uDigitalWrite(L1, HIGH);
-    uDigitalWrite(L2, LOW);
-    uDigitalWrite(L3, LOW);
-    uDigitalWrite(L4, LOW);
+    u_digital_write(L1, HIGH);
+    u_digital_write(L2, LOW);
+    u_digital_write(L3, LOW);
+    u_digital_write(L4, LOW);
 
     //analogWrite(SPEED_LEFT, 0);
     //analogWrite(SPEED_RIGHT, SPEED);
@@ -99,7 +109,7 @@ void steerLeft()
     //digitalWrite(DIR_RIGHT, HIGH);
   
   
-    drive(SPEED, 0);
+    drive(TURN_SPEED, 0);
 }
 
 
@@ -118,10 +128,10 @@ void stepBack(int duration, int state) {
     //digitalWrite(DIR_RIGHT, LOW);
     //digitalWrite(DIR_LEFT, LOW);
 
-    uDigitalWrite(L1, HIGH);
-    uDigitalWrite(L2, HIGH);
-    uDigitalWrite(L3, HIGH);
-    uDigitalWrite(L4, HIGH);    
+    u_digital_write(L1, HIGH);
+    u_digital_write(L2, HIGH);
+    u_digital_write(L3, HIGH);
+    u_digital_write(L4, HIGH);    
     drive(rightSpeed, leftSpeed);
 
     delay(duration);
@@ -130,14 +140,14 @@ void stepBack(int duration, int state) {
 
 void setup() 
 {
-    uDigitalWrite(L1, LOW);
-    uDigitalWrite(L2, LOW);
-    uDigitalWrite(L3, LOW);
-    uDigitalWrite(L4, LOW);
+    u_digital_write(L1, LOW);
+    u_digital_write(L2, LOW);
+    u_digital_write(L3, LOW);
+    u_digital_write(L4, LOW);
     Serial.begin(9600);
     
-    int prev_left = uAnalogRead(LEFT_SENSOR);
-    int prev_right = uAnalogRead(RIGHT_SENSOR);
+    int prev_left = u_analog_read(LEFT_SENSOR);
+    int prev_right = u_analog_read(RIGHT_SENSOR);
     
     analogReference(DEFAULT);
 } 
@@ -152,14 +162,14 @@ void start_moving()
     int ldelta, rdelta;
     boolean left, right;
 
-    prev_left = uAnalogRead(LEFT_SENSOR);
-    prev_right = uAnalogRead(RIGHT_SENSOR);
+    prev_left = u_analog_read(LEFT_SENSOR);
+    prev_right = u_analog_read(RIGHT_SENSOR);
 
     while(true)
     {
       runForward();
-      cur_left = uAnalogRead(LEFT_SENSOR);
-      cur_right = uAnalogRead(RIGHT_SENSOR);
+      cur_left = u_analog_read(LEFT_SENSOR);
+      cur_right = u_analog_read(RIGHT_SENSOR);
       
       ldelta = cur_left - prev_left;
       rdelta = cur_right - prev_right;
@@ -172,108 +182,51 @@ void start_moving()
     }
 }
 
-void test_function() {
-     boolean left, right = 0;
-
-    int cur_left, cur_right;
-    int ldelta, rdelta;
-
-    while (true)
-    {
-      delay (1000);
-      
-      cur_left = uAnalogRead(LEFT_SENSOR);
-      cur_right = uAnalogRead(RIGHT_SENSOR);
-      
-      ldelta = cur_left - prev_left;
-      rdelta = cur_right - prev_right;
-      
-      right = abs(rdelta) > 30 && rdelta < 0;
-      left = abs(ldelta) > 30 && ldelta < 0;
-      
-      Serial.println("*** left -->");
-      Serial.println(cur_left);
-      Serial.println(prev_left);
-      Serial.println(ldelta);
-      Serial.println(left);
-      Serial.println("*** right -->");
-      Serial.println(cur_right);
-      Serial.println(prev_right);
-      Serial.println(rdelta);
-      Serial.println(right);
-      
-      if (!left) prev_left = cur_left;
-      if (!right) prev_right = cur_right;
-      
-      //Serial.println("left -->");
-      //Serial.println(left);
-      //Serial.println("right -->");
-      //Serial.println(right);
-      if (left)
-      {
-        uDigitalWrite(L1, HIGH);
-        uDigitalWrite(L2, LOW);
-        uDigitalWrite(L3, LOW);
-        uDigitalWrite(L4, LOW);
-      }
-      if (right)
-      {
-        uDigitalWrite(L1, LOW);
-        uDigitalWrite(L2, LOW);
-        uDigitalWrite(L3, LOW);
-        uDigitalWrite(L4, HIGH);
-      }
-      if (left == right) {
-            uDigitalWrite(L1, LOW);
-            uDigitalWrite(L2, HIGH);
-            uDigitalWrite(L3, HIGH);
-            uDigitalWrite(L4, LOW);
-      }
-      delay (3000);
-    }
-}
-
-void loop()
+/*void run_home()
 {
-  boolean debug = false;
-  if (debug)
-    test_function();
-   else
-   {
-      //boolean left = !digitalRead(LEFT_SENSOR_PIN);
-      //boolean right = !digitalRead(RIGHT_SENSOR_PIN);
+  while (is_home) {
+    
+  }
+}*/
+
+void check_state () {
       boolean left, right = 0;
-  
       int cur_left, cur_right;
       int ldelta, rdelta;
-   
-      cur_left = uAnalogRead(LEFT_SENSOR);
-      cur_right = uAnalogRead(RIGHT_SENSOR);
-        
-      ldelta = cur_left - prev_left;
-      rdelta = cur_right - prev_right;
-        
-      right = abs(rdelta) > 5 && rdelta < 0;
-      left = abs(ldelta) > 5 && ldelta < 0;
-        
-      if (!left) prev_left = cur_left;
-      if (!right) prev_right = cur_right;
-        
+      
+      cur_left = u_analog_read(LEFT_SENSOR);
+      cur_right = u_analog_read(RIGHT_SENSOR);
+      
+      
+      if( first_left_state == 0) first_left_state = cur_left;
+      if ( first_right_state == 0) first_right_state = cur_right;
+      
+      ldelta = cur_left - first_left_state;
+      rdelta = cur_right - first_right_state;
+
+      right = rdelta < -75;
+      left = ldelta < -75;
+      
+     /* if (left == 0 && right == 0) {
+        first_left_state = cur_left;
+        first_right_state = cur_right;
+      }*/ 
       int targetState;
       
       if (left == right) {
-        targetState = STATE_FORWARD;
-/*        if (ldelta < 0 && rdelta < 0)
+        if (left && right)
         {
-          drive(0,0); //Р С•РЎРѓРЎвЂљР В°Р Р…Р С•Р Р†Р С”Р В°
-          run_drinks();
-          start_moving(); //Р Р…Р В°РЎвЂЎР В°Р В»Р С• Р Т‘Р Р†Р С‘Р В¶Р ВµР Р…Р С‘РЎРЏ
+          Serial.println("*** STOPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP *************************** ");
+          drive(0,0);
+          is_stop = 1;
+          targetState = STATE_STOP;
+          //run_drinks();
+          //start_moving();
         }
         else
         {
           targetState = STATE_FORWARD;
         }
-*/
       } else if (left) {
           targetState = STATE_LEFT;
       } else {
@@ -297,19 +250,119 @@ void loop()
           case STATE_RIGHT:
                     Serial.println("*** RIGHT");
                     Serial.println(cur_right);
-                    Serial.println(prev_right);
+                    Serial.println(first_right_state);
               steerRight();
               break;
   
           case STATE_LEFT:
                     Serial.println("*** LEFT");
                     Serial.println(cur_left);
-                    Serial.println(prev_left);
+                    Serial.println(first_left_state);
               steerLeft();
               break;
       }
+}
+
+void test_function() {
+     boolean left, right = 0;
+
+    int cur_left, cur_right;
+    int ldelta, rdelta;
+
+    //drive(60, 60);
+    while (true)
+    {
+      delay (1000);
+      
+      cur_left = u_analog_read(LEFT_SENSOR);
+      cur_right = u_analog_read(RIGHT_SENSOR);
+      
+      
+      if( first_left_state == 0) first_left_state = cur_left;
+      if ( first_right_state == 0) first_right_state = cur_right;
+      
+      ldelta = cur_left - first_left_state; //prev_left;
+      rdelta = cur_right - first_right_state; //prev_right;
+
+      //ldelta = cur_left - prev_left;
+      //rdelta = cur_right - prev_right;
+      
+      right = abs(rdelta) > 75 && rdelta < 0;
+      left = abs(ldelta) > 75 && ldelta < 0;
+      
+      if (left == 0 && right == 0) {
+        first_left_state = cur_left;
+        first_right_state = cur_right;
+      }
+      
+      Serial.println("*** left -->");
+      Serial.println(cur_left);
+      Serial.println(first_left_state);
+      Serial.println(ldelta);
+      Serial.println(left);
+      Serial.println("*** right -->");
+      Serial.println(cur_right);
+      Serial.println(first_right_state);
+      Serial.println(rdelta);
+      Serial.println(right);
+      
+      if (!left) prev_left = cur_left;
+      if (!right) prev_right = cur_right;
+      
+      //Serial.println("left -->");
+      //Serial.println(left);
+      //Serial.println("right -->");
+      //Serial.println(right);
+      if (left)
+      {
+        u_digital_write(L1, HIGH);
+        u_digital_write(L2, LOW);
+        u_digital_write(L3, LOW);
+        u_digital_write(L4, LOW);
+      }
+      if (right)
+      {
+        u_digital_write(L1, LOW);
+        u_digital_write(L2, LOW);
+        u_digital_write(L3, LOW);
+        u_digital_write(L4, HIGH);
+      }
+      if (left == right) {
+            u_digital_write(L1, LOW);
+            u_digital_write(L2, HIGH);
+            u_digital_write(L3, HIGH);
+            u_digital_write(L4, LOW);
+      }
+      delay (3000);
+    }
+}
+
+void loop()
+{
+  boolean debug = false; 
+  if (debug) {
+    test_function();
+    return;
+  }
+/*    
+   if (state == STATE_HOME) {
+     is_home = 1;
+     run_home();
+   }   
+   if (is_stop == 0)
+   {
+*/
+     check_state();
+/*
    }
-   //delay (10);
+   
+   if (is_stop) {
+     //buttle counter
+     //TOTAL_STOP_NUMBER
+   }
+   
+  delay (50);
+  */
 }
 
 
