@@ -1,154 +1,202 @@
-// Моторы подключаются к клеммам M1+,M1-,M2+,M2-  
-// Motor shield использует четыре контакта 6,5,7,4 для управления моторами 
+// Подключим библиотеку для работы с I2C-расширителем портов
+#include <Wire.h>
+// Подключим библиотеку Strela
+#include <Strela.h>
 
+//#include "pitches.h"
 
-#define SPEED_LEFT       6
-#define SPEED_RIGHT      5 
-#define DIR_LEFT         7
-#define DIR_RIGHT        4
-#define LEFT_SENSOR_PIN  8
-#define RIGHT_SENSOR_PIN 9
+#define NOTE_B0  31
+#define NOTE_C1  33
+#define NOTE_CS1 35
+#define NOTE_D1  37
+#define NOTE_DS1 39
+#define NOTE_E1  41
+#define NOTE_F1  44
+#define NOTE_FS1 46
+#define NOTE_G1  49
+#define NOTE_GS1 52
+#define NOTE_A1  55
+#define NOTE_AS1 58
+#define NOTE_B1  62
+#define NOTE_C2  65
+#define NOTE_CS2 69
+#define NOTE_D2  73
+#define NOTE_DS2 78
+#define NOTE_E2  82
+#define NOTE_F2  87
+#define NOTE_FS2 93
+#define NOTE_G2  98
+#define NOTE_GS2 104
+#define NOTE_A2  110
+#define NOTE_AS2 117
+#define NOTE_B2  123
+#define NOTE_C3  131
+#define NOTE_CS3 139
+#define NOTE_D3  147
+#define NOTE_DS3 156
+#define NOTE_E3  165
+#define NOTE_F3  175
+#define NOTE_FS3 185
+#define NOTE_G3  196
+#define NOTE_GS3 208
+#define NOTE_A3  220
+#define NOTE_AS3 233
+#define NOTE_B3  247
+#define NOTE_C4  262
+#define NOTE_CS4 277
+#define NOTE_D4  294
+#define NOTE_DS4 311
+#define NOTE_E4  330
+#define NOTE_F4  349
+#define NOTE_FS4 370
+#define NOTE_G4  392
+#define NOTE_GS4 415
+#define NOTE_A4  440
+#define NOTE_AS4 466
+#define NOTE_B4  494
+#define NOTE_C5  523
+#define NOTE_CS5 554
+#define NOTE_D5  587
+#define NOTE_DS5 622
+#define NOTE_E5  659
+#define NOTE_F5  698
+#define NOTE_FS5 740
+#define NOTE_G5  784
+#define NOTE_GS5 831
+#define NOTE_A5  880
+#define NOTE_AS5 932
+#define NOTE_B5  988
+#define NOTE_C6  1047
+#define NOTE_CS6 1109
+#define NOTE_D6  1175
+#define NOTE_DS6 1245
+#define NOTE_E6  1319
+#define NOTE_F6  1397
+#define NOTE_FS6 1480
+#define NOTE_G6  1568
+#define NOTE_GS6 1661
+#define NOTE_A6  1760
+#define NOTE_AS6 1865
+#define NOTE_B6  1976
+#define NOTE_C7  2093
+#define NOTE_CS7 2217
+#define NOTE_D7  2349
+#define NOTE_DS7 2489
+#define NOTE_E7  2637
+#define NOTE_F7  2794
+#define NOTE_FS7 2960
+#define NOTE_G7  3136
+#define NOTE_GS7 3322
+#define NOTE_A7  3520
+#define NOTE_AS7 3729
+#define NOTE_B7  3951
+#define NOTE_C8  4186
+#define NOTE_CS8 4435
+#define NOTE_D8  4699
+#define NOTE_DS8 4978
 
-// Скорость, с которой мы движемся вперёд (0-255)
-#define SPEED            100
+int eighth = 0;
+int quarter = 2;
+int dottedquarter = 3;
+int half = 4;
+int whole = 8;
 
-// Скорость прохождения сложных участков
-#define SLOW_SPEED       35
-
-#define BACK_SLOW_SPEED  30
-#define BACK_FAST_SPEED  50
-
-// Коэффициент, задающий во сколько раз нужно затормозить
-// одно из колёс для поворота
-#define BRAKE_K          4
-
-#define STATE_FORWARD    0
-#define STATE_RIGHT      1
-#define STATE_LEFT       2
-
-#define SPEED_STEP       2
-
-#define FAST_TIME_THRESHOLD     500
-
-int state = STATE_FORWARD;
-int currentSpeed = SPEED;
-int fastTime = 0;
-
-void runForward() 
+void playNoteAndLight(int note,int length)
 {
-    state = STATE_FORWARD;
+  uDigitalWrite(L1,HIGH);
+  uDigitalWrite(L2,HIGH);
+  uDigitalWrite(L3,HIGH);
+  uDigitalWrite(L4,HIGH);
+  tone(BUZZER, note,length);
+  delay(length);
+  uDigitalWrite(L1,HIGH);
+  uDigitalWrite(L2,HIGH);
+  uDigitalWrite(L3,HIGH);
+  uDigitalWrite(L4,HIGH);
 
-    fastTime += 1;
-    if (fastTime < FAST_TIME_THRESHOLD) {
-        currentSpeed = SLOW_SPEED;
-    } else {
-        currentSpeed = min(currentSpeed + SPEED_STEP, SPEED);
-    }
-
-    analogWrite(SPEED_LEFT, currentSpeed);
-    analogWrite(SPEED_RIGHT, currentSpeed);
-
-    digitalWrite(DIR_LEFT, HIGH);
-    digitalWrite(DIR_RIGHT, HIGH);
 }
 
-void steerRight() 
+void setuptempo(int starter)
 {
-    state = STATE_RIGHT;
-    fastTime = 0;
-
-    // Замедляем правое колесо относительно левого,
-    // чтобы начать поворот
-    analogWrite(SPEED_RIGHT, 0);
-    analogWrite(SPEED_LEFT, SPEED);
-
-    digitalWrite(DIR_LEFT, HIGH);
-    digitalWrite(DIR_RIGHT, HIGH);
+    eighth = starter;
+    quarter = quarter*starter;
+    dottedquarter = dottedquarter*starter;
+    half = half*starter;
+    whole = whole*starter;
 }
 
-void steerLeft() 
-{
-    state = STATE_LEFT;
-    fastTime = 0;
-
-    analogWrite(SPEED_LEFT, 0);
-    analogWrite(SPEED_RIGHT, SPEED);
-
-    digitalWrite(DIR_LEFT, HIGH);
-    digitalWrite(DIR_RIGHT, HIGH);
+void setup() {
+  setuptempo(130);
 }
-
-
-void stepBack(int duration, int state) {
-    if (!duration)
-        return;
-
-    // В зависимости от направления поворота при движении назад будем
-    // делать небольшой разворот 
-    int leftSpeed = (state == STATE_RIGHT) ? BACK_SLOW_SPEED : BACK_FAST_SPEED;
-    int rightSpeed = (state == STATE_LEFT) ? BACK_SLOW_SPEED : BACK_FAST_SPEED;
-
-    analogWrite(SPEED_LEFT, leftSpeed);
-    analogWrite(SPEED_RIGHT, rightSpeed);
-
-    // реверс колёс
-    digitalWrite(DIR_RIGHT, LOW);
-    digitalWrite(DIR_LEFT, LOW);
-
-    delay(duration);
-}
-
-
-void setup() 
-{
-    // Настраивает выводы платы 4,5,6,7 на вывод сигналов 
-    for(int i = 4; i <= 7; i++)
-        pinMode(i, OUTPUT);
-
-    // Сразу едем вперёд
-    runForward();
-} 
 
 void loop() 
-{ 
-    // Наш робот ездит по белому полю с чёрным треком. В обратном случае не нужно
-    // инвертировать значения с датчиков
-    boolean left = !digitalRead(LEFT_SENSOR_PIN);
-    boolean right = !digitalRead(RIGHT_SENSOR_PIN);
-
-    // В какое состояние нужно перейти?
-    int targetState;
-
-    if (left == right) {
-        // под сенсорами всё белое или всё чёрное
-        // едем вперёд
-        targetState = STATE_FORWARD;
-    } else if (left) {
-        // левый сенсор упёрся в трек
-        // поворачиваем налево
-        targetState = STATE_LEFT;
-    } else {
-        targetState = STATE_RIGHT;
-    }
-
-    if (state == STATE_FORWARD && targetState != STATE_FORWARD) {
-        int brakeTime = (currentSpeed > SLOW_SPEED) ?
-            currentSpeed : 0;
-        stepBack(brakeTime, targetState);
-    }
-
-    switch (targetState) {
-        case STATE_FORWARD:
-            runForward();
-            break;
-
-        case STATE_RIGHT:
-            steerRight();
-            break;
-
-        case STATE_LEFT:
-            steerLeft();
-            break;
-    }
-
+{
+    /* jingle bells */
+    
+    playNoteAndLight(NOTE_E4,quarter);
+    playNoteAndLight(NOTE_E4,quarter);
+    playNoteAndLight(NOTE_E4,half);
+    
+    playNoteAndLight(NOTE_E4,quarter);
+    playNoteAndLight(NOTE_E4,quarter);
+    playNoteAndLight(NOTE_E4,half);
+    
+    playNoteAndLight(NOTE_E4,quarter);
+    playNoteAndLight(NOTE_G4,quarter);
+    playNoteAndLight(NOTE_C4,dottedquarter);
+    playNoteAndLight(NOTE_D4,eighth);
+    
+    playNoteAndLight(NOTE_E4,whole);
+    
+    playNoteAndLight(NOTE_F4,quarter);
+    playNoteAndLight(NOTE_F4,quarter);
+    playNoteAndLight(NOTE_F4,quarter);
+    playNoteAndLight(NOTE_F4,quarter);
+    
+    playNoteAndLight(NOTE_F4,quarter);
+    playNoteAndLight(NOTE_E4,quarter);
+    playNoteAndLight(NOTE_E4,half);
+    
+    playNoteAndLight(NOTE_E4,quarter);
+    playNoteAndLight(NOTE_D4,quarter);
+    playNoteAndLight(NOTE_D4,quarter);
+    playNoteAndLight(NOTE_E4,quarter);
+    
+    playNoteAndLight(NOTE_D4,half);
+    playNoteAndLight(NOTE_G4,half);
+    
+    /* second verse */
+    playNoteAndLight(NOTE_E4,quarter);
+    playNoteAndLight(NOTE_E4,quarter);
+    playNoteAndLight(NOTE_E4,half);
+    
+    playNoteAndLight(NOTE_E4,quarter);
+    playNoteAndLight(NOTE_E4,quarter);
+    playNoteAndLight(NOTE_E4,half);
+    
+    playNoteAndLight(NOTE_E4,quarter);
+    playNoteAndLight(NOTE_G4,quarter);
+    playNoteAndLight(NOTE_C4,dottedquarter);
+    playNoteAndLight(NOTE_D4,eighth);
+    
+    playNoteAndLight(NOTE_E4,whole);
+    
+    playNoteAndLight(NOTE_F4,quarter);
+    playNoteAndLight(NOTE_F4,quarter);
+    playNoteAndLight(NOTE_F4,quarter);
+    playNoteAndLight(NOTE_F4,quarter);
+    
+    playNoteAndLight(NOTE_F4,quarter);
+    playNoteAndLight(NOTE_E4,quarter);
+    playNoteAndLight(NOTE_E4,quarter);
+    playNoteAndLight(NOTE_E4,eighth);
+    playNoteAndLight(NOTE_E4,eighth);
+    
+    playNoteAndLight(NOTE_G4,quarter);
+    playNoteAndLight(NOTE_G4,quarter);
+    playNoteAndLight(NOTE_F4,quarter);
+    playNoteAndLight(NOTE_D4,quarter);
+    
+    playNoteAndLight(NOTE_C4,whole);
 }
+
