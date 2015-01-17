@@ -7,22 +7,38 @@
 
 #define LEFT_SENSOR_PIN  8
 #define RIGHT_SENSOR_PIN 9
+
+#define SPEED            80//120//60
+#define TURN_SPEED       90//     140//60
+#define SLOW_SPEED       70//90//60 
+#define BACK_SLOW_SPEED  70//90//60
+#define BACK_FAST_SPEED  70//100//60
+
+
 #define BRAKE_K          4
-#define BLACK_THRESHOLD 45
+
+#define BLACK_DELTA 50
+
 #define STATE_FORWARD    0
 #define STATE_RIGHT      1
 #define STATE_LEFT       2
 #define STATE_STOP       3
 #define STATE_HOME       4
+
 #define SPEED_STEP       2
+
 #define FAST_TIME_THRESHOLD     500
+
+#define RIGHT_THRESHOLD  100
+#define LEFT_THRESHOLD  200
 #define LEFT_SENSOR P11
 #define RIGHT_SENSOR P12
-#define TOTAL_STOP_NUMBER 1 // число бутылок - остановок
-#define BOTTLE_COUNT 4
+
+#define TOTAL_STOP_NUMBER 4 // число бутылок - остановок
 #define TIMER_SET_VALUE 4
 #define INPUT_TIMEOUT_PARAM 15 // 15*4 c = 60 c (4c - поучено из расечта частоты процессора, делителя таймера и размерности таймера)
 #define WAIT_POURING_TIMEOUT 75
+
 #define N_TRIES_WRITE 15
 #define N_TRIES_READ 10
 
@@ -39,22 +55,18 @@ const char UFLAG_COMMAND_END = 'l';
 const char UFLAG_OPERATION_END = 'l';
 //
 
-int gl_speed = 80;
-int gl_slow_speed = 70;
-int gl_turn_speed = 90;
-int gl_back_slow_speed = 70;
-int gl_back_fast_speed = 70;
-
 int state = STATE_FORWARD;//STATE_HOME;
-int currentSpeed = gl_speed;
+int currentSpeed = SPEED;
 int fastTime = 0;
+int prev_right = 0;
+int prev_left = 0;
 
 int first_left_state = 0;
 int first_right_state = 0;
 
 int bottle_counter = 0;
 int is_stop = 0;
-int is_home = 0; //предполагаем что изначально находимся на позиции ДОМ
+int is_home = 1; //предполагаем что изначально находимся на позиции ДОМ
 
 int interrupts_counter = 0; //парметр числа прерываний: T (таймаут) = interrupts_counter * 4с, где 4 с - время до переполнения таймера 1 при частоте 16 000 0000/1024
 int is_base_station_timeout = 0;
@@ -70,116 +82,15 @@ struct liquid {
 typedef liquid RECIPE;
 
 
-RECIPE recipes[BOTTLE_COUNT]; //число ингридиентов коктейлей ограничено числом бутылок
-int ingredient_amount = 4; //0;
+RECIPE recipes[TOTAL_STOP_NUMBER]; //число ингридиентов коктейлей ограничено числом бутылок
+int ingredient_amount = 0;
 int current_ingredient = 0;
 
 int passed_stops = 0;
-int is_first_stop_after_start = 1; // флаг того, что программа только начинает работать и она ожидает, что ближайшая остановка  - дом
-
-
-//********************************************************************************************************************************************************************************************************************************************************************
-
-#define NOTE_B0  31
-#define NOTE_C1  33
-#define NOTE_CS1 35
-#define NOTE_D1  37
-#define NOTE_DS1 39
-#define NOTE_E1  41
-#define NOTE_F1  44
-#define NOTE_FS1 46
-#define NOTE_G1  49
-#define NOTE_GS1 52
-#define NOTE_A1  55
-#define NOTE_AS1 58
-#define NOTE_B1  62
-#define NOTE_C2  65
-#define NOTE_CS2 69
-#define NOTE_D2  73
-#define NOTE_DS2 78
-#define NOTE_E2  82
-#define NOTE_F2  87
-#define NOTE_FS2 93
-#define NOTE_G2  98
-#define NOTE_GS2 104
-#define NOTE_A2  110
-#define NOTE_AS2 117
-#define NOTE_B2  123
-#define NOTE_C3  131
-#define NOTE_CS3 139
-#define NOTE_D3  147
-#define NOTE_DS3 156
-#define NOTE_E3  165
-#define NOTE_F3  175
-#define NOTE_FS3 185
-#define NOTE_G3  196
-#define NOTE_GS3 208
-#define NOTE_A3  220
-#define NOTE_AS3 233
-#define NOTE_B3  247
-#define NOTE_C4  262
-#define NOTE_CS4 277
-#define NOTE_D4  294
-#define NOTE_DS4 311
-#define NOTE_E4  330
-#define NOTE_F4  349
-#define NOTE_FS4 370
-#define NOTE_G4  392
-#define NOTE_GS4 415
-#define NOTE_A4  440
-#define NOTE_AS4 466
-#define NOTE_B4  494
-#define NOTE_C5  523
-#define NOTE_CS5 554
-#define NOTE_D5  587
-#define NOTE_DS5 622
-#define NOTE_E5  659
-#define NOTE_F5  698
-#define NOTE_FS5 740
-#define NOTE_G5  784
-#define NOTE_GS5 831
-#define NOTE_A5  880
-#define NOTE_AS5 932
-#define NOTE_B5  988
-#define NOTE_C6  1047
-#define NOTE_CS6 1109
-#define NOTE_D6  1175
-#define NOTE_DS6 1245
-#define NOTE_E6  1319
-#define NOTE_F6  1397
-#define NOTE_FS6 1480
-#define NOTE_G6  1568
-#define NOTE_GS6 1661
-#define NOTE_A6  1760
-#define NOTE_AS6 1865
-#define NOTE_B6  1976
-#define NOTE_C7  2093
-#define NOTE_CS7 2217
-#define NOTE_D7  2349
-#define NOTE_DS7 2489
-#define NOTE_E7  2637
-#define NOTE_F7  2794
-#define NOTE_FS7 2960
-#define NOTE_G7  3136
-#define NOTE_GS7 3322
-#define NOTE_A7  3520
-#define NOTE_AS7 3729
-#define NOTE_B7  3951
-#define NOTE_C8  4186
-#define NOTE_CS8 4435
-#define NOTE_D8  4699
-#define NOTE_DS8 4978
-
-int eighth = 0;
-int quarter = 2;
-int dottedquarter = 3;
-int half = 4;
-int whole = 8;
-// ***************************************************************************************************************************************************************************************************************************************************
+int ignore_stops = 0;
 
 void setup() 
 {
-    //motor_connection(1, 0);
     u_digital_write(L1, LOW);
     u_digital_write(L2, LOW);
     u_digital_write(L3, LOW);
@@ -197,65 +108,6 @@ void setup()
     
     while (!Serial1)
       ; // wait for serial port to connect. Needed for Leonardo only
-      
-    setuptempo(130);
-}
-
-
-void set_speed (int mls)
-{
-  switch (mls)
-  {
-    case 30:
-      gl_speed = 90;
-      gl_slow_speed = 80;
-      gl_turn_speed = 100;
-      gl_back_slow_speed = 80;
-      gl_back_fast_speed = 80;
-      break;
-    case 50:
-      gl_speed = 105;
-      gl_slow_speed = 95;
-      gl_turn_speed = 115;
-      gl_back_slow_speed = 95;
-      gl_back_fast_speed = 95;
-      break;
-    case 60:
-      gl_speed =108;
-      gl_slow_speed = 98;
-      gl_turn_speed = 118;
-      gl_back_slow_speed = 98;
-      gl_back_fast_speed = 98;
-      break;
-    case 80:
-      gl_speed = 118;
-      gl_slow_speed = 108;
-      gl_turn_speed = 128;
-      gl_back_slow_speed = 108;
-      gl_back_fast_speed = 108;
-      break;
-    case 90:
-      gl_speed = 120;
-      gl_slow_speed = 110;
-      gl_turn_speed = 130;
-      gl_back_slow_speed = 110;
-      gl_back_fast_speed = 110;
-      break;
-    case 100:
-      gl_speed = 124;
-      gl_slow_speed = 114;
-      gl_turn_speed = 134;
-      gl_back_slow_speed = 114;
-      gl_back_fast_speed = 114;
-      break;
-    default:
-      gl_speed = 80;
-      gl_slow_speed = 70;
-      gl_turn_speed = 90;
-      gl_back_slow_speed = 70;
-      gl_back_fast_speed = 70;
-
-  }
 }
 
 void runForward()
@@ -263,9 +115,9 @@ void runForward()
     state = STATE_FORWARD;
     fastTime += 1;
     if (fastTime < FAST_TIME_THRESHOLD) {
-        currentSpeed = gl_slow_speed;
+        currentSpeed = SLOW_SPEED;
     } else {
-        currentSpeed = min(currentSpeed + SPEED_STEP, gl_speed);
+        currentSpeed = min(currentSpeed + SPEED_STEP, SPEED);
     }
     u_digital_write(L1, LOW);
     u_digital_write(L2, HIGH);
@@ -279,13 +131,19 @@ void steerRight()
 {
     state = STATE_RIGHT;
     fastTime = 0;
+
+    //analogWrite(SPEED_RIGHT, 0);
+    //nalogWrite(SPEED_LEFT, SPEED);
+
+    //digitalWrite(DIR_LEFT, HIGH);
+    //digitalWrite(DIR_RIGHT, HIGH);
     
     u_digital_write(L1, LOW);
     u_digital_write(L2, LOW);
     u_digital_write(L3, LOW);
     u_digital_write(L4, HIGH);
     
-    drive (0, gl_turn_speed);
+    drive (0, TURN_SPEED);
 }
 
 void steerLeft() 
@@ -298,7 +156,7 @@ void steerLeft()
     u_digital_write(L3, LOW);
     u_digital_write(L4, LOW);
 
-    drive(gl_turn_speed, 0);
+    drive(TURN_SPEED, 0);
 }
 
 
@@ -309,8 +167,8 @@ void stepBack(int duration, int state)
 {
     if (!duration) return;
 
-    int leftSpeed = (state == STATE_RIGHT) ? gl_back_slow_speed : gl_back_fast_speed;
-    int rightSpeed = (state == STATE_LEFT) ? gl_back_slow_speed : gl_back_fast_speed;
+    int leftSpeed = (state == STATE_RIGHT) ? BACK_SLOW_SPEED : BACK_FAST_SPEED;
+    int rightSpeed = (state == STATE_LEFT) ? BACK_SLOW_SPEED : BACK_FAST_SPEED;
 
     //включение 4х светоиодов для отображения направления движения
     u_digital_write(L1, HIGH);
@@ -327,7 +185,6 @@ void start_moving()
   начало движения с остановки (включая с домашней позиции)
 */
 {
-    state = STATE_FORWARD;
     int cur_left, cur_right; // текущее значение на датчиках, левом и правом соответственно
     int ldelta, rdelta; //дельта между исходным (белым!) значением полотона и текущим,  левая и правая соответственно
     boolean left, right; // флаг того, находится ли левое и правое колесо робота на черной полосе (1) или на белой (0)
@@ -335,24 +192,14 @@ void start_moving()
     while(true)
     {
       runForward(); //начинаем движение вперед
-      delay(200);
       cur_left = u_analog_read(LEFT_SENSOR); // считываем текущее значение с левого датчика
       cur_right = u_analog_read(RIGHT_SENSOR); // считываем текущее значение с правого датчика
-
-#if defined(DEBUG)      
-      Serial.print("*** cur_left --> "); Serial.println(cur_left);
-      Serial.print("first_left_state => "); Serial.println(first_left_state);
-      
-      Serial.print("*** cur_right --> "); Serial.println(cur_right);
-      Serial.print("first_right_state => "); Serial.println(first_right_state);
-      Serial.println(" ");
-#endif
       
       ldelta = cur_left - first_left_state;
       rdelta = cur_right - first_right_state;
       
-      right = !(rdelta < -BLACK_THRESHOLD); // если текущее отклонения значения правого датчика от исходного более, чем на 75 и в отрицательную сторону, значит правое колесо попало на черную линию
-      left = !(ldelta < -BLACK_THRESHOLD); // если текущее отклонения значения левого датчика от исходного более, чем на 75 и в отрицательную сторону, значит левое колесо попало на черную линию
+      right = rdelta < -BLACK_DELTA; // если текущее отклонения значения правого датчика от исходного более, чем на 75 и в отрицательную сторону, значит правое колесо попало на черную линию
+      left = ldelta < -BLACK_DELTA; // если текущее отклонения значения левого датчика от исходного более, чем на 75 и в отрицательную сторону, значит левое колесо попало на черную линию
 
       //робот трогается с остановки (черная поперечная полоса), значит как только хотя бы одно колесо попало на белое,
       //то остановка пройдена      
@@ -376,7 +223,7 @@ int get_cocktail ()
   switch (cocktail) {
     case 0x0:
       ingredient_amount = 1; //общее число ингридиентов по данному коктейлю
-      recipes[0].volume.volume_uint16_t = 60; //объем жидкости в мл, наливаемый из данной конкретной бутылки
+      recipes[0].volume.volume_uint16_t = 58; //объем жидкости в мл, наливаемый из данной конкретной бутылки
       recipes[0].bottle_number = 1; // число бутылок - от 0 до 3
       is_avaliable_cock = 1;
       break;
@@ -387,33 +234,37 @@ int get_cocktail ()
       recipes[0].bottle_number = 0; // число бутылок - от 0 до 3
       
       recipes[1].volume.volume_uint16_t = 30; //объем жидкости в мл, наливаемый из данной конкретной бутылки
-      recipes[1].bottle_number = 2; // число бутылок - от 0 до 3
+      recipes[1].bottle_number = 3; // число бутылок - от 0 до 3
       
       is_avaliable_cock = 1;
       break;
       
     case 0x2:
-      ingredient_amount = 2; //общее число ингридиентов по данному коктейлю
-      recipes[0].volume.volume_uint16_t = 30; //объем жидкости в мл, наливаемый из данной конкретной бутылк
+      ingredient_amount = 3; //общее число ингридиентов по данному коктейлю
+      recipes[0].volume.volume_uint16_t = 10; //объем жидкости в мл, наливаемый из данной конкретной бутылк
       recipes[0].bottle_number = 0; // число бутылок - от 0 до 3
       
-      recipes[1].volume.volume_uint16_t = 50; //объем жидкости в мл, наливаемый из данной конкретной бутылк
+      recipes[1].volume.volume_uint16_t = 35; //объем жидкости в мл, наливаемый из данной конкретной бутылк
       recipes[1].bottle_number = 1; // число бутылок - от 0 до 3
       
+      recipes[2].volume.volume_uint16_t = 20; //объем жидкости в мл, наливаемый из данной конкретной бутылк
+      recipes[2].bottle_number = 2; // число бутылок - от 0 до 3
       is_avaliable_cock = 1;
       break;
       
     case 0x3:
-      ingredient_amount = 3; //общее число ингридиентов по данному коктейлю
-      recipes[0].volume.volume_uint16_t = 30; //объем жидкости в мл, наливаемый из данной конкретной бутылк
+      ingredient_amount = 4; //общее число ингридиентов по данному коктейлю
+      recipes[0].volume.volume_uint16_t = 10; //объем жидкости в мл, наливаемый из данной конкретной бутылк
       recipes[0].bottle_number = 0; // число бутылок - от 0 до 3
       
-      recipes[1].volume.volume_uint16_t = 30; //объем жидкости в мл, наливаемый из данной конкретной бутылк
+      recipes[1].volume.volume_uint16_t = 10; //объем жидкости в мл, наливаемый из данной конкретной бутылк
       recipes[1].bottle_number = 1; // число бутылок - от 0 до 3
       
-      recipes[2].volume.volume_uint16_t = 30; //объем жидкости в мл, наливаемый из данной конкретной бутылк
+      recipes[2].volume.volume_uint16_t = 10; //объем жидкости в мл, наливаемый из данной конкретной бутылк
       recipes[2].bottle_number = 2; // число бутылок - от 0 до 3
-
+      
+      recipes[3].volume.volume_uint16_t = 15; //объем жидкости в мл, наливаемый из данной конкретной бутылк
+      recipes[3].bottle_number = 3; // число бутылок - от 0 до 3
       is_avaliable_cock = 1;
       break;
       
@@ -450,7 +301,6 @@ int check_base_station_status_by_serial()
   is_base_station_timeout = 0;
 #if defined(DEBUG)
     Serial.println("check_base_station_status_by_serial");
-    Serial.println("Check base state ");
 #endif
 
   //1. Отправляем запрос о готовности базы, с таймаутом
@@ -601,12 +451,8 @@ void run_home()
   После нажатия подтверждения - робот заправшивает наличие жидкостей в бутылках согласно выбранному рецепту
 */
 {
-#if defined(DEBUG)
-  Serial.println("----------------------------------------- run home -----------------------------------------");
-#endif
   boolean S1_pushed = 0;
   boolean ok = 0;
-  set_speed(0); //скорость по умолчанию - для пустого резервуара
   while (is_home) {
     //выключение всех светодиодов
      u_digital_write(L1, LOW);
@@ -629,7 +475,7 @@ void run_home()
           if (button_state) { //если кнопка нажата
             //Подадим считанное значение с кнопки на светодиод с тем же номером            
             u_digital_write(L1 + button_number, button_state); //зажигаем диод, с номер, сответствующим нажатой кнопке (для отображения выбранного коктейля пользователю)
-            cocktail |= (1 << (button_number - 1)); //устанваливаем в байте данных о коктейле - бит, соответствующий нажатой кнопке
+            cocktail |= (1 << (button_state - 1)); //устанваливаем в байте данных о коктейле - бит, соответствующий нажатой кнопке
           }
         }
 
@@ -669,8 +515,6 @@ void run_home()
       }
       if (ok) {
 #if defined(DEBUG)
-              Serial.print("cocktail => ");
-              Serial.println(cocktail);
               Serial.println("is ok entering cocktail");
 #endif
         if (get_cocktail () <= 0) ok = 0; // если не удалось получить текущий рецепт, устанавливаем флаг с ошибкой
@@ -681,8 +525,10 @@ void run_home()
           passed_stops = 0; //обнуляем счетчик остановок
           current_ingredient = 0; // обнуляем текущую позицию  в массиве ингридиентов recipes
           is_stop = 0; // на всякий случай выставляем в ноль, так как никаких остановок еще нет, только трогаемся с домашней точки
-          is_home = 0; //выехали из домашней точки
-          start_moving(); //начало движения
+          //start_moving();
+          //is_home = 0; //выехали из домашней точки
+          is_home = 1;
+          ignore_stops = 0; //пока ошибок нет, едем с всеми остановками
         }
         else ok = 0;
       }
@@ -696,149 +542,105 @@ void base_station_pouring_timeout ()
 {
   interrupts_counter++; //парметр числа прерываний: T (таймаут) = interrupts_counter * 4с, где 4 с - время до переполнения таймера 1 при частоте 16 000 0000/1024
   if (interrupts_counter < WAIT_POURING_TIMEOUT) reset_timer_counter(TIMER_SET_VALUE); // если чсло прерываний меньше требуемого количества, то устанавливаем новое прерывание
-  else is_base_station_timeout = 1; // таймаут!
+  else is_base_station_timeout = 0; // таймаут!
 }
 
 int run_stop()
 /*
   Функция обработки остановки
-  1. Посылаем сигнал готовности к наполнению жидкостью для каждого ингредиента последовательно
-  2. Получение от базы статуса (таймаут на 5 минут)
-  3. если положительный ответ, то продолжаемработу
+  1. Посылаем сигнал готовности к наполнению жидкостью
+  2. Получение то базы статуса (таймаут на 5 минут)
+  3. если положительный ответ, то продолжаем движение к следующей остановке
   4. Ошибка - возвращаемся к домшаней точки без остановок
 */
 {
-      int ok = 1;
-      int mls = 0;
-      for (int i = 0; i < ingredient_amount && ok; i++)
-      {
-          is_base_station_timeout = 0; //обнуляем признак таймаута
-          interrupts_counter = 0; //параметр числа прерываний: T (таймаут) = interrupts_counter * 4с, где 4 с - время до переполнения таймера 1 при частоте 16 000 0000/1024
-          ok = 0; //флаг успешной операции
-
-          //1. Посылаем сигнал готовности к наполнению жидкостью
-          unsigned char recieved_data; // для хранения данных, полученных из приемника: recieved_data = UDR1 (см. Alkoduino.cpp)
-          /*
-              USART_transmit (UFLAG_FILL); //66h - fill
-              USART_transmit (recipes[current_ingredient].bottle); //номер бутылки
-              USART_transmit (recipes[current_ingredient].volume); //мл
-              set_timeout(TIMER_SET_VALUE, base_station_pouring_timeout); //устанавливаем таймаут равный 4 сек
-              while (USART_recieve(&recieved_data) <= 0 && !is_base_station_timeout) //ожидание получения кода ОК
-                ;
-          */
-          set_timeout(TIMER_SET_VALUE, base_station_pouring_timeout); //устанавливаем таймаут равный 4 сек
-          Serial1.print (UFLAG_FILL); //fill? - префикс команды-запроса о начале заполенения резервуара жидкостью из определенной бутылки
-          Serial1.write (recipes[i].bottle_number); //номер бутылки
-          Serial1.write (recipes[i].volume.volume_char[0]); //младший байт мл
-          Serial1.write (recipes[i].volume.volume_char[1]); //старший байт мл
-          Serial1.print (UFLAG_COMMAND_END); //признак конца команды
+      is_base_station_timeout = 0; //обнуляем признак таймаута
+      interrupts_counter = 0; //параметр числа прерываний: T (таймаут) = interrupts_counter * 4с, где 4 с - время до переполнения таймера 1 при частоте 16 000 0000/1024
+      int ok = 0; //флаг успешной операции
+      //Serial.println ("run_stop");
     
+      //1. Посылаем сигнал готовности к наполнению жидкостью
+      unsigned char recieved_data; // для хранения данных, полученных из приемника: recieved_data = UDR1 (см. Alkoduino.cpp)
+      /*
+          USART_transmit (UFLAG_FILL); //66h - fill
+          USART_transmit (recipes[current_ingredient].bottle); //номер бутылки
+          USART_transmit (recipes[current_ingredient].volume); //мл
+          set_timeout(TIMER_SET_VALUE, base_station_pouring_timeout); //устанавливаем таймаут равный 4 сек
+          while (USART_recieve(&recieved_data) <= 0 && !is_base_station_timeout) //ожидание получения кода ОК
+            ;
+      */
+      Serial1.print (UFLAG_FILL); //fill? - префикс команды-запроса о начале заполенения резервуара жидкостью из определенной бутылки
+      Serial1.write (recipes[current_ingredient].bottle_number); //номер бутылки
+      Serial1.write (recipes[current_ingredient].volume.volume_char[0]); //младший байт мл
+      Serial1.write (recipes[current_ingredient].volume.volume_char[1]); //старший байт мл
+      Serial1.print (UFLAG_COMMAND_END); //признак конца команды
+
 #if defined(DEBUG)
-          Serial.print ("Filling: ");
-          Serial.print (UFLAG_FILL); //68h - has? - префикс команды-запроса о наличии жидкости в определенной бутылке
-          Serial.print(" - ");
-          Serial.print (recipes[i].bottle_number); //номер бутылки
-          Serial.print(" - ");
-          Serial.print (recipes[i].volume.volume_char[0]); //младший байт мл
-          Serial.print(" - ");
-          Serial.print (recipes[i].volume.volume_char[1]); //старший байт мл
-          Serial.print(" - ");
-          Serial.println (UFLAG_COMMAND_END); //признак конца команды    
+      Serial.print ("Filling: ");
+      Serial.print (UFLAG_FILL); //68h - has? - префикс команды-запроса о наличии жидкости в определенной бутылке
+      Serial.print(" - ");
+      Serial.print (recipes[current_ingredient].bottle_number); //номер бутылки
+      Serial.print(" - ");
+      Serial.print (recipes[current_ingredient].volume.volume_char[0]); //младший байт мл
+      Serial.print(" - ");
+      Serial.print (recipes[current_ingredient].volume.volume_char[1]); //старший байт мл
+      Serial.print(" - ");
+      Serial.println (UFLAG_COMMAND_END); //признак конца команды    
 #endif
-          
-          int finished = 0;
-          while (!finished && !is_base_station_timeout) { //цикл - пока не сработает таймаут или не будет получено подтверждение
-            u_digital_write(L1, LOW);
-            delay (70);
-            u_digital_write(L1, HIGH);
-            if (Serial1.available() > 0) {//ожидание поступления данных в буфер
-              recieved_data = Serial1.read(); //чтение байта данных из буфера
-#if defined(DEBUG)
-              Serial.print("received_data => ");
-              Serial.println(recieved_data);
-#endif
-              if (recieved_data == UFLAG_STOP) {
-#if defined(DEBUG)
-                Serial.print("Is UFLAG_STOP");
-#endif
-                finished = 1;
-                ok = 1;
-              }
-            }
-          }
-          if (is_base_station_timeout) { //сработал таймаут
-            //база не почему то не наливает или во время приемо передачи возникла ошибка - сброс по таймауту
-#if defined(DEBUG)
-              Serial.println("Base station is timeouted for fill request");
-#endif
-            ok = 0;
-            //ok = 1;
-          }
-          mls += recipes[i].volume.volume_uint16_t;
-      }
       
+      int finished = 0;
+      while (!finished && !is_base_station_timeout) { //цикл - пока не сработает таймаут или не будет получено подтверждение
+        if (Serial1.available() > 0) {//ожидание поступления данных в буфер
+          recieved_data = Serial1.read(); //чтение байта данных из буфера
+#if defined(DEBUG)
+          Serial.print("received_data => ");
+          Serial.println(recieved_data);
+#endif
+          if (recieved_data == UFLAG_STOP)
+#if defined(DEBUG)
+          Serial.print("Is UFLAG_STOP");
+#endif
+            finished = 1;
+            ok = 1;
+        }
+      }
+      if (is_base_station_timeout) { //сработал таймаут
+        //база не почему то не наливает или во время приемо передачи возникла ошибка - сброс по таймауту
+#if defined(DEBUG)
+          Serial.println("Base station is timeouted for fill request");
+#endif
+        ok = 0;
+      }
+
+      current_ingredient++; //обработали ингридиент, едем к следующему
       is_stop = 0; // обработка остановки закончилась
       passed_stops++; // проехали еще одну остановку
       
       is_base_station_timeout = 0; //обнуляем на всякий случай
       interrupts_counter = 0; //обнуляем на всякий случай
-      
-      delay(15000);
-      
-      start_moving(); //начало движения, обработка съезда с поперечной линии
-      is_home = 0; //на всякий случай сбрасываем флаг домашней точки
         
       if (!ok) {
+        ignore_stops = 1; // в случае возникновения ошибки - возвращаемся на домашнюю точек без остановок.
         return -1;
       }
-#if defined(DEBUG)
-      Serial.print("mls => ");
-      Serial.println(mls);
-#endif     
-      set_speed(mls);
-      //set_speed(0);
       return 1;
 }
 
 //*************************************************************************************************************************************************
 void check_stop () 
 /*
-  проверка: является ли данная остановка - домашней точкой, остановкой для налива или останавливаться не требуется
+  проверка: является ли данная остановка - домашней точкой, нужной остановкой или останавливаться не требуется
 */
 {
-#if defined(DEBUG)
-  Serial.println("----------------------------------------- check_stop -----------------------------------------");
-#endif
-    u_digital_write(L1, HIGH);
-    u_digital_write(L2, LOW);
-    u_digital_write(L3, HIGH);
-    u_digital_write(L4, LOW);
-      
-    if (is_first_stop_after_start > 0) 
-    {
-      drive(0,0);
-      is_home = 1;
-      is_stop = 0;
-      state = STATE_HOME;
-      is_first_stop_after_start = 0;
-      
       u_digital_write(L1, LOW);
       u_digital_write(L2, LOW);
       u_digital_write(L3, LOW);
       u_digital_write(L4, LOW);
-      delay (100);
-      u_digital_write(L1, HIGH);
-      u_digital_write(L2, HIGH);
-      u_digital_write(L3, HIGH);
-      u_digital_write(L4, HIGH);
-      delay (1000);
-      u_digital_write(L1, LOW);
-      u_digital_write(L2, LOW);
-      u_digital_write(L3, LOW);
-      u_digital_write(L4, LOW);
-    }
-//  if (current_ingredient >= ingredient_amount) return; //если заполнили всеми ингридиентами из рецепта, то робот следует до домашней точки без остановок
-    else if (passed_stops == TOTAL_STOP_NUMBER) { //если проехали все станции, то текущая остановка - дом
+      
+      
+    if (ignore_stops > 0) return; //если была ошибка и включен флаг ignore_stops - то робот следует до домашней точки без остановок
+    if (current_ingredient >= ingredient_amount) return; //если заполнили всеми ингридиентами из рецепта, то робот следует до домашней точки без остановок
+    if (passed_stops == TOTAL_STOP_NUMBER) { //если проехали все станции, то текущая остановка - дом
       //эта остановка дом
       drive(0,0);
       is_home = 1; //флаг Домашняя остановка устанавливаем
@@ -860,10 +662,8 @@ void check_stop ()
       u_digital_write(L2, LOW);
       u_digital_write(L3, LOW);
       u_digital_write(L4, LOW);
-      run_music();
     } 
-    else// if (recipes[current_ingredient].bottle_number == passed_stops + 1)//если текущая остановка - остановка для наполнения жидкостью (есть в списке ингридиентов)
-    {
+    else if (recipes[current_ingredient].bottle_number == passed_stops + 1){ //если текущая остановка - остановка для наполнения жидкостью (есть в списке ингридиентов)
       drive(0,0); // останавливаем вращение моторов
       is_stop = 1; // флаг - текущая остановка
       is_home = 0; // флаг Домашняя остновка сбрасываем
@@ -908,8 +708,8 @@ void check_state ()
       ldelta = cur_left - first_left_state;
       rdelta = cur_right - first_right_state;
 
-      right = rdelta < -BLACK_THRESHOLD; // если текущее отклонения значения правого датчика от исходного более, чем на 75 и в отрицательную сторону, значит правое колесо попало на черную линию
-      left = ldelta < -BLACK_THRESHOLD; // если текущее отклонения значения левого датчика от исходного более, чем на 75 и в отрицательную сторону, значит левое колесо попало на черную линию
+      right = rdelta < -BLACK_DELTA; // если текущее отклонения значения правого датчика от исходного более, чем на 75 и в отрицательную сторону, значит правое колесо попало на черную линию
+      left = ldelta < -BLACK_DELTA; // если текущее отклонения значения левого датчика от исходного более, чем на 75 и в отрицательную сторону, значит левое колесо попало на черную линию
       
       int targetState; // текущее состояние в зависимости от положение колес
       
@@ -925,14 +725,14 @@ void check_state ()
       }
   
       if (state == STATE_FORWARD && targetState != STATE_FORWARD) {
-          int brakeTime = (currentSpeed > gl_slow_speed) ?
+          int brakeTime = (currentSpeed > SLOW_SPEED) ?
               currentSpeed : 0;
           stepBack(brakeTime, targetState);
       }
   
       switch (targetState) {
           case STATE_FORWARD:
-#if defined(_DRIVE_DEBUG)
+#if defined(DEBUG)
                 Serial.print("RUN FORWARD => ");
                 Serial.print("cur_left: ");
                 Serial.print(cur_left);
@@ -943,7 +743,7 @@ void check_state ()
               break;
   
           case STATE_RIGHT:
-#if defined(_DRIVE_DEBUG)
+#if defined(DEBUG)
                 Serial.print("RUN RIGHT => ");
                 Serial.print("cur_left: ");
                 Serial.print(cur_left);
@@ -955,7 +755,7 @@ void check_state ()
               break;
   
           case STATE_LEFT:
-#if defined(_DRIVE_DEBUG)
+#if defined(DEBUG)
                 Serial.print("RUN LEFT => ");
                 Serial.print("cur_left: ");
                 Serial.print(cur_left);
@@ -965,7 +765,7 @@ void check_state ()
               steerLeft(); //поворот налево
               break;
           case STATE_STOP:
-#if defined(_DRIVE_DEBUG)
+#if defined(DEBUG)
                   Serial.print("STATE STOP => ");
                   Serial.print("cur_left: ");
                   Serial.print(cur_left);
@@ -975,6 +775,78 @@ void check_state ()
                 check_stop(); //проверка остановки - является ли остановка домашней точкой или требуемой остановкой для наполнения жидкостью
               break;
       }
+}
+
+void test_function() {
+     boolean left, right = 0;
+
+    int cur_left, cur_right;
+    int ldelta, rdelta;
+
+    //drive(255, 255);
+    while (true)
+    {
+      delay (1000);
+      
+      cur_left = u_analog_read(LEFT_SENSOR);
+      cur_right = u_analog_read(RIGHT_SENSOR);
+      
+      
+      if( first_left_state == 0) first_left_state = cur_left;
+      if ( first_right_state == 0) first_right_state = cur_right;
+      
+      ldelta = cur_left - first_left_state; //prev_left;
+      rdelta = cur_right - first_right_state; //prev_right;
+
+      //ldelta = cur_left - prev_left;
+      //rdelta = cur_right - prev_right;
+      
+      right = rdelta < -BLACK_DELTA;
+      left = ldelta < -BLACK_DELTA;
+      
+      Serial.print("*** cur_left --> ");
+      Serial.println(cur_left);
+      Serial.print("first_left_state => ");
+      Serial.println(first_left_state);
+      //Serial.println(ldelta);
+      //Serial.println(left);
+      Serial.print("*** cur_right --> ");
+      Serial.println(cur_right);
+      Serial.print("first_right_state => ");
+      Serial.println(first_right_state);
+      Serial.println(" ");
+      //Serial.println(rdelta);
+      //Serial.println(right);
+      
+      if (!left) prev_left = cur_left;
+      if (!right) prev_right = cur_right;
+      
+      ////Serial.println("left -->");
+      ////Serial.println(left);
+      ////Serial.println("right -->");
+      ////Serial.println(right);
+      if (left)
+      {
+        u_digital_write(L1, HIGH);
+        u_digital_write(L2, LOW);
+        u_digital_write(L3, LOW);
+        u_digital_write(L4, LOW);
+      }
+      if (right)
+      {
+        u_digital_write(L1, LOW);
+        u_digital_write(L2, LOW);
+        u_digital_write(L3, LOW);
+        u_digital_write(L4, HIGH);
+      }
+      if (left == right) {
+            u_digital_write(L1, LOW);
+            u_digital_write(L2, HIGH);
+            u_digital_write(L3, HIGH);
+            u_digital_write(L4, LOW);
+      }
+      delay (3000);
+    }
 }
 
 ISR(USART_RXC_vect) // interrupt service routine that wraps a user defined function supplied by attachInterrupt
@@ -994,7 +866,20 @@ void loop()
   3. (else) проверка текущего состояния робота при езде, положения колес, выбор дальнейшего поведения
 */
 {
+  boolean debug = false; 
+  if (debug) {
+    test_function();
+    return;
+  }
 
+  is_stop = 0;
+  is_home = 0;
+  current_ingredient = 1;
+  ingredient_amount = 4;
+  passed_stops = 0;
+  
+  //delay(15000);
+  
    if (is_home && state == STATE_HOME) {//остновка является домашней остановкой
      run_home(); //обработка остановки
    }
@@ -1005,103 +890,6 @@ void loop()
    {
      check_state(); //проверка текущего состояния робота
    }
-}
-
-//************************************************************************************************************************************************************************************************************************************************************
-
-void playNoteAndLight(int note,int length)
-{
-  u_digital_write(L1,HIGH);
-  u_digital_write(L2,HIGH);
-  u_digital_write(L3,HIGH);
-  u_digital_write(L4,HIGH);
-  tone(BUZZER, note,length);
-  delay(length);
-  u_digital_write(L1,HIGH);
-  u_digital_write(L2,HIGH);
-  u_digital_write(L3,HIGH);
-  u_digital_write(L4,HIGH);
-
-}
-
-void setuptempo(int starter)
-{
-    eighth = starter;
-    quarter = quarter*starter;
-    dottedquarter = dottedquarter*starter;
-    half = half*starter;
-    whole = whole*starter;
-}
-
-void run_music() 
-{
-    /* jingle bells */
-    
-    playNoteAndLight(NOTE_E4,quarter);
-    playNoteAndLight(NOTE_E4,quarter);
-    playNoteAndLight(NOTE_E4,half);
-    
-    playNoteAndLight(NOTE_E4,quarter);
-    playNoteAndLight(NOTE_E4,quarter);
-    playNoteAndLight(NOTE_E4,half);
-    
-    playNoteAndLight(NOTE_E4,quarter);
-    playNoteAndLight(NOTE_G4,quarter);
-    playNoteAndLight(NOTE_C4,dottedquarter);
-    playNoteAndLight(NOTE_D4,eighth);
-    
-    playNoteAndLight(NOTE_E4,whole);
-    
-    playNoteAndLight(NOTE_F4,quarter);
-    playNoteAndLight(NOTE_F4,quarter);
-    playNoteAndLight(NOTE_F4,quarter);
-    playNoteAndLight(NOTE_F4,quarter);
-    
-    playNoteAndLight(NOTE_F4,quarter);
-    playNoteAndLight(NOTE_E4,quarter);
-    playNoteAndLight(NOTE_E4,half);
-    
-    playNoteAndLight(NOTE_E4,quarter);
-    playNoteAndLight(NOTE_D4,quarter);
-    playNoteAndLight(NOTE_D4,quarter);
-    playNoteAndLight(NOTE_E4,quarter);
-    
-    playNoteAndLight(NOTE_D4,half);
-    playNoteAndLight(NOTE_G4,half);
-    
-    /* second verse */
-    playNoteAndLight(NOTE_E4,quarter);
-    playNoteAndLight(NOTE_E4,quarter);
-    playNoteAndLight(NOTE_E4,half);
-    
-    playNoteAndLight(NOTE_E4,quarter);
-    playNoteAndLight(NOTE_E4,quarter);
-    playNoteAndLight(NOTE_E4,half);
-    
-    playNoteAndLight(NOTE_E4,quarter);
-    playNoteAndLight(NOTE_G4,quarter);
-    playNoteAndLight(NOTE_C4,dottedquarter);
-    playNoteAndLight(NOTE_D4,eighth);
-    
-    playNoteAndLight(NOTE_E4,whole);
-    
-    playNoteAndLight(NOTE_F4,quarter);
-    playNoteAndLight(NOTE_F4,quarter);
-    playNoteAndLight(NOTE_F4,quarter);
-    playNoteAndLight(NOTE_F4,quarter);
-    
-    playNoteAndLight(NOTE_F4,quarter);
-    playNoteAndLight(NOTE_E4,quarter);
-    playNoteAndLight(NOTE_E4,quarter);
-    playNoteAndLight(NOTE_E4,eighth);
-    playNoteAndLight(NOTE_E4,eighth);
-    
-    playNoteAndLight(NOTE_G4,quarter);
-    playNoteAndLight(NOTE_G4,quarter);
-    playNoteAndLight(NOTE_F4,quarter);
-    playNoteAndLight(NOTE_D4,quarter);
-    
-    playNoteAndLight(NOTE_C4,whole);
 }
 
 
